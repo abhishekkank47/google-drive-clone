@@ -320,3 +320,57 @@ export const createShareLink = async (req: Request, res: Response) => {
   });
 };
 //----------------------------------------------------------------------------- share link to users
+
+
+//------------------------------------------------------------------------------- access File Via ShareLink
+export const accessFileViaShareLink = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const { token } = req.params;
+
+  // Auth required (NO public access)
+  if (!user?.userId) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+
+  if (!token) {
+    return res.status(400).json({ message: "Missing share token" });
+  }
+
+  // Hash incoming token (NEVER compare raw)
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+
+  // Validate share link
+  const shareLink = await ShareLinkModel.findOne({
+    tokenHash,
+    $or: [
+      { expiresAt: { $exists: false } },
+      { expiresAt: { $gt: new Date() } },
+    ],
+  });
+
+  if (!shareLink) {
+    return res.status(404).json({ message: "Invalid or expired share link" });
+  }
+
+  // Fetch file metadata ONLY
+  const file = await FileModel.findById(shareLink.fileId).select(
+    "filename mimeType size createdAt ownerId"
+  );
+
+  if (!file) {
+    return res.status(404).json({ message: "File not found" });
+  }
+
+  // Return metadata (NOT Cloudinary URL)
+  return res.status(200).json({
+    file: {
+      id: file._id,
+      filename: file.filename,
+      mimeType: file.mimeType,
+      size: file.size,
+      uploadedAt: file.createdAt,
+      ownerId: file.ownerId,
+    },
+  });
+};
+//------------------------------------------------------------------------------- access File Via ShareLink
