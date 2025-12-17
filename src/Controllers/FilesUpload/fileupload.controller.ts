@@ -1,12 +1,11 @@
 import { Request, Response } from "express";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { FileModel } from "../../Models/file.model";
 import { FilePermissionModel } from "../../Models/filepermission.model";
 import { FileAuditModel } from "../../Models/fileaudit.model";
 import userModel from "../../Models/user.model";
 import { ShareLinkModel } from "../../Models/sharelink.model";
 import { createHash, randomUUID } from "node:crypto";
-
 
 //-------------------------------------------------------------------------- Upload
 export const uploadFiles = async (req: Request, res: Response) => {
@@ -122,7 +121,6 @@ export const getMyFiles = async (req: Request, res: Response) => {
 };
 //-------------------------------------------------------------------------- My files
 
-
 //-------------------------------------------------------------------------- Share File With Specific Users
 export const shareFileWithUsers = async (req: Request, res: Response) => {
   const user = (req as any).user;
@@ -138,7 +136,9 @@ export const shareFileWithUsers = async (req: Request, res: Response) => {
   }
 
   if (!Array.isArray(userIds) || userIds.length === 0) {
-    return res.status(400).json({ message: "userIds must be a non-empty array" });
+    return res
+      .status(400)
+      .json({ message: "userIds must be a non-empty array" });
   }
 
   const session = await mongoose.startSession();
@@ -160,9 +160,10 @@ export const shareFileWithUsers = async (req: Request, res: Response) => {
     // Validate users exist (and remove duplicates)
     const uniqueUserIds = [...new Set(userIds)];
 
-    const validUsers = await userModel.find({
-      _id: { $in: uniqueUserIds },
-    })
+    const validUsers = await userModel
+      .find({
+        _id: { $in: uniqueUserIds },
+      })
       .select("_id")
       .session(session);
 
@@ -222,7 +223,6 @@ export const shareFileWithUsers = async (req: Request, res: Response) => {
 };
 //-------------------------------------------------------------------------- Share File With Specific Users
 
-
 //----------------------------------------------------------------------------- get Files Shared With Me
 export const getFilesSharedWithMe = async (req: Request, res: Response) => {
   const user = (req as any).user;
@@ -262,7 +262,6 @@ export const getFilesSharedWithMe = async (req: Request, res: Response) => {
 };
 //----------------------------------------------------------------------------- get Files Shared With Me
 
-
 //----------------------------------------------------------------------------- share link to users
 export const createShareLink = async (req: Request, res: Response) => {
   const user = (req as any).user;
@@ -277,31 +276,28 @@ export const createShareLink = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid fileId" });
   }
 
- 
   const isOwner = await FilePermissionModel.findOne({
-    fileId,
-    userId: user.userId,
+    fileId: new Types.ObjectId(fileId),
+    userId: new Types.ObjectId(user.userId),
     role: "owner",
   });
 
   if (!isOwner) {
-    return res.status(403).json({ message: "Only owner can create share link" });
+    return res
+      .status(403)
+      .json({ message: "Only owner can create share link" });
   }
-
 
   const file = await FileModel.findById(fileId);
   if (!file) {
     return res.status(404).json({ message: "File not found" });
   }
 
+  const rawToken = randomUUID();
 
-const rawToken = randomUUID();
+  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
 
-const tokenHash = createHash("sha256")
-  .update(rawToken)
-  .digest("hex");
-
-// Store hashed token
+  // Store hashed token
   await ShareLinkModel.create({
     fileId,
     tokenHash,
@@ -309,14 +305,14 @@ const tokenHash = createHash("sha256")
     createdBy: user.userId,
   });
 
-// Audit log
+  // Audit log
   await FileAuditModel.create({
     fileId,
     userId: user.userId,
     action: "SHARE_LINK",
   });
 
-// Return share URL
+  // Return share URL
   const shareUrl = `${process.env.APP_BASE_URL}/share/${rawToken}`;
 
   return res.status(201).json({
