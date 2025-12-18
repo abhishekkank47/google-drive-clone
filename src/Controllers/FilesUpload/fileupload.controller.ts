@@ -6,6 +6,7 @@ import { FileAuditModel } from "../../Models/fileaudit.model";
 import userModel from "../../Models/user.model";
 import { ShareLinkModel } from "../../Models/sharelink.model";
 import { createHash, randomUUID } from "node:crypto";
+// import cloudinary from "../../Config/Cloudinary/cloudinary.config";
 
 //-------------------------------------------------------------------------- Upload
 export const uploadFiles = async (req: Request, res: Response) => {
@@ -321,7 +322,6 @@ export const createShareLink = async (req: Request, res: Response) => {
 };
 //----------------------------------------------------------------------------- share link to users
 
-
 //------------------------------------------------------------------------------- access File Via ShareLink
 export const accessFileViaShareLink = async (req: Request, res: Response) => {
   const user = (req as any).user;
@@ -374,3 +374,65 @@ export const accessFileViaShareLink = async (req: Request, res: Response) => {
   });
 };
 //------------------------------------------------------------------------------- access File Via ShareLink
+
+//-------------------------------------------------------------------------- download File
+export const downloadFile = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const { fileId } = req.params;
+
+  if (!user?.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(fileId)) {
+    return res.status(400).json({ message: "Invalid fileId" });
+  }
+
+  /**
+   * 1️⃣ Fetch file
+   */
+  const file = await FileModel.findById(fileId);
+  if (!file) {
+    return res.status(404).json({ message: "File not found" });
+  }
+
+  /**
+   * 2️⃣ Check access via FilePermission
+   */
+  const permission = await FilePermissionModel.findOne({
+    fileId,
+    userId: user.userId,
+    $or: [
+      { expiresAt: { $exists: false } },
+      { expiresAt: { $gt: new Date() } },
+    ],
+  });
+
+  if (!permission) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
+  /**
+   * 3️⃣ Audit log (DOWNLOAD)
+   */
+  await FileAuditModel.create({
+    fileId,
+    userId: user.userId,
+    action: "DOWNLOAD",
+  });
+
+  /**
+   * 4️⃣ Return Cloudinary URL (TEMPORARY)
+   * ⚠️ Later replace with signed URL or streaming
+   */
+  return res.status(200).json({
+    file: {
+      id: file._id,
+      filename: file.filename,
+      mimeType: file.mimeType,
+      size: file.size,
+      url: file.cloudinaryUrl, // exposed for now
+    },
+  });
+};
+//-------------------------------------------------------------------------- download File

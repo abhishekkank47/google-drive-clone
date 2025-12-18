@@ -8,7 +8,8 @@ const storage = new CloudinaryStorage({
     return {
       folder: "drive-files",
       resource_type: "auto",
-      type: "private", // 🔐 IMPORTANT
+      // type: "private", // 🔐 IMPORTANT
+      // type: "upload",
       public_id: `${Date.now()}-${file.originalname}`,
     };
   },
