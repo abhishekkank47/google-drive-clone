@@ -53,7 +53,7 @@ A production-ready Node.js backend for secure file sharing with Google Drive-lik
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd secure-file-sharing-backend
+cd Backend
 
 # Install dependencies
 npm install
